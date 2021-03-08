@@ -16,4 +16,6 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Run script
+        env:
+          DESTINATION: all
         run: ./scripts/build_platforms.sh

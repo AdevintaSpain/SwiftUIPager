@@ -10,7 +10,7 @@ import SwiftUI
 
 struct ColorsExampleView: View {
 
-    @State var pageIndex = 0
+    @StateObject var page: Page = .first()
 
     var colors: [Color] = [
         .red, .blue, .black, .gray, .purple, .green, .orange, .pink, .yellow, .white
@@ -20,7 +20,7 @@ struct ColorsExampleView: View {
         NavigationView {
             GeometryReader { proxy in
                 VStack(spacing: 10) {
-                    Pager(page: self.$pageIndex,
+                    Pager(page: self.page,
                           data: self.colors,
                           id: \.self) {
                             self.pageView($0)
@@ -29,11 +29,6 @@ struct ColorsExampleView: View {
                     .disableDragging()
                     .itemSpacing(10)
                     .padding(20)
-                    .onPageChanged({ page in
-                        withAnimation {
-                            self.pageIndex = page
-                        }
-                    })
                     .frame(width: min(proxy.size.height, proxy.size.width),
                            height: min(proxy.size.height, proxy.size.width))
                     .background(Color.gray.opacity(0.3))
@@ -44,11 +39,11 @@ struct ColorsExampleView: View {
                     HStack {
                         Spacer()
                         Circle()
-                            .fill(self.colors[self.pageIndex])
+                            .fill(self.colors[self.page.index])
                             .frame(width: 80)
-                            .overlay(Circle().stroke(self.pageIndex < 4 ? Color.gray.opacity(0.5) : Color.black, lineWidth: 5))
+                            .overlay(Circle().stroke(self.page.index < 4 ? Color.gray.opacity(0.5) : Color.black, lineWidth: 5))
                         Spacer()
-                        Text("\(self.colors[self.pageIndex].rgb)")
+                        Text("\(self.colors[self.page.index].rgb)")
                         Spacer()
                     }
 
@@ -58,7 +53,7 @@ struct ColorsExampleView: View {
                         Spacer()
                         Button(action: {
                             withAnimation {
-                                self.pageIndex = 0
+                                self.page.update(.moveToFirst)
                             }
                         }, label: {
                             VStack(spacing: 4) {
@@ -67,10 +62,10 @@ struct ColorsExampleView: View {
                                 Text("Start")
                                     .font(.subheadline)
                             }
-                        }).disabled(self.pageIndex <= 0)
+                        }).disabled(self.page.index <= 0)
                         Button(action: {
                             withAnimation {
-                                self.pageIndex = max(0, self.pageIndex - 1)
+                                self.page.update(.previous)
                             }
                         }, label: {
                             VStack(spacing: 4) {
@@ -79,11 +74,11 @@ struct ColorsExampleView: View {
                                 Text("Previous")
                                     .font(.subheadline)
                             }
-                        }).disabled(self.pageIndex <= 0)
+                        }).disabled(self.page.index <= 0)
                         Spacer()
                         Button(action: {
                             withAnimation {
-                                self.pageIndex = min(self.colors.count - 1, self.pageIndex + 1)
+                                self.page.update(.next)
                             }
                         }, label: {
                             VStack(spacing: 4) {
@@ -92,10 +87,10 @@ struct ColorsExampleView: View {
                                 Text("Next")
                                     .font(.subheadline)
                             }
-                        }).disabled(self.pageIndex >= self.colors.count - 1)
+                        }).disabled(self.page.index >= self.colors.count - 1)
                         Button(action: {
                             withAnimation {
-                                self.pageIndex = self.colors.count - 1
+                                self.page.update(.moveToLast)
                             }
                         }, label: {
                             VStack(spacing: 4) {
@@ -104,7 +99,7 @@ struct ColorsExampleView: View {
                                 Text("End")
                                     .font(.subheadline)
                             }
-                        }).disabled(self.pageIndex >= self.colors.count - 1)
+                        }).disabled(self.page.index >= self.colors.count - 1)
                         Spacer()
                     }
 

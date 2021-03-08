@@ -8,8 +8,8 @@
 
 import SwiftUI
 
-@available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
-extension Pager: Buildable, PagerProxy {
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
+extension Pager: Buildable {
 
     /// Result of paginating
     public typealias DragResult = (page: Int, newPage: Int, translation: CGFloat, velocity: Double)
@@ -27,6 +27,21 @@ extension Pager: Buildable, PagerProxy {
     public func multiplePagination() -> Self {
         mutating(keyPath: \.allowsMultiplePagination, value: true)
             .mutating(keyPath: \.contentLoadingPolicy, value: .eager)
+    }
+
+    /// Allows to scroll one page at a time. Use `ratio` to limit next item's reveal ratio.
+    /// Once reached, items won't keep scrolling further.
+    /// `Pager` will use then `sensitivity` to determine whether to paginate to the next page.
+    ///
+    /// - Parameter ratio: max page reveal ratio. Should be `0 < ratio < 1`. `default` is `1`
+    /// - Parameter sensitivity: sensitivity to be applied when paginating. `default` is `medium` a.k.a `0.5`
+    ///
+    /// For instance, setting `ratio` to `0.33` will make `Pager` reveal up to a third of the next item.
+    /// A proper  `sensitivy` for this scenario would be `high` (a.k.a, `0.33`) or a custom value lower than `ratio`
+    public func singlePagination(ratio: CGFloat = 1, sensitivity: PaginationSensitivity = .medium) -> Self {
+        mutating(keyPath: \.pageRatio, value: min(1, max(0, ratio)))
+            .mutating(keyPath: \.allowsMultiplePagination, value: false)
+            .mutating(keyPath: \.sensitivity, value: sensitivity)
     }
 
     /// Sets the policy followed to load `Pager` content.
@@ -98,6 +113,32 @@ extension Pager: Buildable, PagerProxy {
         mutating(keyPath: \.swipeInteractionArea, value: value)
     }
 
+    /// Sets whether `Pager` should bounce or not
+    public func bounces(_ value: Bool) -> Self {
+        mutating(keyPath: \.bounces, value: value)
+    }
+
+    /// Adds a callback to react when dragging begins
+    ///
+    /// - Parameter callback: block to be called when  dragging begins
+    public func onDraggingBegan(_ callback: (() -> Void)?) -> Self {
+        mutating(keyPath: \.onDraggingBegan, value: callback)
+    }
+
+    /// Adds a callback to react when dragging changes
+    ///
+    /// - Parameter callback: block to be called when  dragging changes. `pageInrement` is passed as argument
+    public func onDraggingChanged(_ callback: ((Double) -> Void)?) -> Self {
+        mutating(keyPath: \.onDraggingChanged, value: callback)
+    }
+
+    /// Adds a callback to react when dragging ends
+    ///
+    /// - Parameter callback: block to be called when  dragging ends.
+    public func onDraggingEnded(_ callback: (() -> Void)?) -> Self {
+        mutating(keyPath: \.onDraggingEnded, value: callback)
+    }
+
     #endif
 
     /// Changes the a the  alignment of the pages relative to their container
@@ -127,19 +168,49 @@ extension Pager: Buildable, PagerProxy {
     ///
     /// - Parameter scale: shrink ratio
     /// - Note: `scale` must be lower than _1_ and greather than _0_, otherwise it defaults to the previous value
+    @available(*, deprecated, renamed: "interactive(scale:)")
     public func interactive(_ scale: CGFloat) -> Self {
         guard !shouldRotate else { return self }
-        guard scale > 0, scale < 1 else { return self }
-        return mutating(keyPath: \.interactiveScale, value: scale)
+        return interactive(scale: scale)
+    }
+
+    /// Call this method to provide a shrink ratio that will apply to the items that are not focused.
+    ///
+    /// - Parameter ratio: shrink ratio applied to unfocsed items
+    /// - Note: `ratio` must be lower than _1_ and greather than _0_, otherwise it defaults to the previous value
+    public func interactive(scale ratio: CGFloat) -> Self {
+        return mutating(keyPath: \.interactiveScale, value: max(0, min(1, ratio)))
+    }
+
+    /// Call this method to provide an interactive opacity effect to neighboring pages. The further they are
+    /// from the focused page, the more opacity will be applied
+    ///
+    /// - Parameter decrement: opacity step increment between each index
+    ///
+    /// For instance, if the focused index is _3_ and `stepPercentage` is `0.4`,
+    /// then page _2_ and _4_ will have an opacity of `0.8`, pages _1_ and _5_ will have
+    /// an opacity of `0.4` and so on.
+    ///
+    /// - Note: `increment` must be lower than _1_ and greather than _0_
+    public func interactive(opacity decrement: Double) -> Self {
+        mutating(keyPath: \.opacityIncrement, value: decrement)
+    }
+
+    /// Call this method to add a 3D rotation effect.
+    ///
+    /// - Parameter value: `true` if the pages should have a 3D rotation effect
+    public func interactive(rotation shouldRotate: Bool) -> Self {
+        mutating(keyPath: \.shouldRotate, value: shouldRotate)
     }
 
     /// Call this method to add a 3D rotation effect.
     ///
     /// - Parameter value: `true` if the pages should have a 3D rotation effect
     /// - Note: If you call this method, any previous or later call to `interactive` will have no effect.
+    @available(*, deprecated, renamed: "interactive(rotation:)")
     public func rotation3D(_ value: Bool = true) -> Self {
-        mutating(keyPath: \.interactiveScale, value: value ? rotationInteractiveScale : 1)
-            .mutating(keyPath: \.shouldRotate, value: value)
+        interactive(scale: value ? 0.7 : 1)
+            .interactive(rotation: value)
     }
 
     /// Provides an increment to the page index offset. Use this to modify the scroll offset
@@ -195,19 +266,19 @@ extension Pager: Buildable, PagerProxy {
         itemAspectRatio(nil)
     }
 
-    /// Adds a callback to react to every change on the page index.
+    /// Adds a callback to react whenever the page changes
     ///
     /// - Parameter callback: block to be called when `page` changes
     public func onPageChanged(_ callback: ((Int) -> Void)?) -> Self {
         mutating(keyPath: \.onPageChanged, value: callback)
     }
-	
-	/// Adds a callback to react when dragging begins. Useful for dismissing a keyboard like a scrollview
-	///
-	/// - Parameter callback: block to be called when  dragging begins
-	public func onDraggingBegan(_ callback: (() -> Void)?) -> Self {
-		mutating(keyPath: \.onDraggingBegan, value: callback)
-	}
+
+    /// Adds a callback to react whenever the page will change
+    ///
+    /// - Parameter callback: block to be called when `page` will  change
+    public func onPageWillChange(_ callback: ((Int) -> Void)?) -> Self {
+        mutating(keyPath: \.onPageWillChange, value: callback)
+    }
 
     /// Sets some padding on the non-scroll axis
     ///

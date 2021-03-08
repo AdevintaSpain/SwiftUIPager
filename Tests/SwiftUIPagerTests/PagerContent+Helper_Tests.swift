@@ -5,9 +5,93 @@ import SwiftUI
 final class PagerContent_Helper_Tests: XCTestCase {
 
     var givenPager: Pager<Int, Int, Text>.PagerContent {
-        Pager.PagerContent(size: CGSize(width: 300, height: 300), page: .constant(0), data: Array(0..<20), id: \.self) {
+        Pager.PagerContent(size: CGSize(width: 300, height: 300), pagerModel: .first(), data: Array(0..<20), id: \.self) {
             Text("\($0)")
         }
+    }
+
+    func test_GivenPager_WhenPagerModelHelpers_ThenSameValues() {
+        let pagerContent = givenPager
+        pagerContent.pagerModel.draggingVelocity = -100
+        pagerContent.pagerModel.lastDraggingValue = .unsafeInit()
+        pagerContent.pagerModel.draggingOffset = 200
+        
+        XCTAssertEqual(pagerContent.pagerModel.draggingVelocity, pagerContent.draggingVelocity)
+        XCTAssertEqual(pagerContent.pagerModel.lastDraggingValue, pagerContent.lastDraggingValue)
+        XCTAssertEqual(pagerContent.pagerModel.draggingOffset, pagerContent.draggingOffset)
+    }
+
+    func test_GivenPager_WhenOpacity_ThenOne() {
+        XCTAssertEqual(givenPager.opacity(for: PageWrapper(batchId: 1, keyPath: \.self, element: 1)), 1)
+    }
+
+    func test_GivenPager_WhenOpacityForNotFoundIndex_ThenOne() {
+        let pager = givenPager.interactive(opacity: 0.3)
+        XCTAssertEqual(pager.opacity(for: PageWrapper(batchId: 0, keyPath: \.self, element: -1)), 1)
+    }
+
+    func test_GivenFadedPager_WhenOpacityForNotFoundIndex_ThenValues() {
+        let pagerContent = givenPager.interactive(opacity: 0.3)
+        pagerContent.pagerModel.index = 2
+
+        let focusedItem = PageWrapper(batchId: 1, keyPath: \.self, element: 2)
+        let neighbor1 = PageWrapper(batchId: 1, keyPath: \.self, element: 1)
+        let neighbor2 = PageWrapper(batchId: 1, keyPath: \.self, element: 3)
+        let neighbor3 = PageWrapper(batchId: 1, keyPath: \.self, element: 4)
+        XCTAssertEqual(pagerContent.opacity(for: focusedItem), 1)
+        XCTAssertEqual(Int((pagerContent.opacity(for: neighbor1) * 10).rounded()), 7)
+        XCTAssertEqual(Int((pagerContent.opacity(for: neighbor2) * 10).rounded()), 7)
+        XCTAssertEqual(Int((pagerContent.opacity(for: neighbor3) * 10).rounded()), 4)
+    }
+
+    func test_GivenFadedPagerMovingForward_WhenOpacityForNotFoundIndex_ThenValues() {
+        let pagerContent = givenPager.interactive(opacity: 0.4)
+        pagerContent.pagerModel.index = 2
+        pagerContent.pagerModel.draggingOffset = -150
+
+        let focusedItem = PageWrapper(batchId: 1, keyPath: \.self, element: 2)
+        let neighbor1 = PageWrapper(batchId: 1, keyPath: \.self, element: 1)
+        let neighbor2 = PageWrapper(batchId: 1, keyPath: \.self, element: 3)
+        let neighbor3 = PageWrapper(batchId: 1, keyPath: \.self, element: 4)
+        XCTAssertEqual(Int((pagerContent.opacity(for: focusedItem) * 10).rounded()), 8)
+        XCTAssertEqual(Int((pagerContent.opacity(for: neighbor1) * 10).rounded()), 4)
+        XCTAssertEqual(Int((pagerContent.opacity(for: neighbor2) * 10).rounded()), 8)
+        XCTAssertEqual(Int((pagerContent.opacity(for: neighbor3) * 10).rounded()), 4)
+    }
+
+    func test_GivenMultiplePaginationPager_WhenDragResult_ThenValues() {
+        let pagerContent = givenPager.multiplePagination()
+        pagerContent.pagerModel.draggingOffset = -pagerContent.size.width * 2
+        let result = pagerContent.dragResult
+        XCTAssertEqual(result.page, 2)
+        XCTAssertEqual(result.increment, 2)
+    }
+
+    func test_GivenInfinitePager_WhenDragLeft_ThenLastPage() {
+        let pagerContent = givenPager.loopPages()
+        pagerContent.pagerModel.draggingOffset = pagerContent.size.width / 10
+        pagerContent.pagerModel.draggingVelocity = 600
+        let result = pagerContent.dragResult
+        XCTAssertEqual(result.page, pagerContent.numberOfPages - 1)
+        XCTAssertEqual(result.increment, 1)
+    }
+
+    func test_GivenInfiniteMultiplePaginationPager_WhenDragLeft_ThenRightPage() {
+        let pagerContent = givenPager.loopPages().multiplePagination()
+        pagerContent.pagerModel.draggingOffset = pagerContent.size.width * 3
+        pagerContent.pagerModel.draggingVelocity = 600
+        let result = pagerContent.dragResult
+        XCTAssertEqual(result.page, pagerContent.numberOfPages - 4)
+        XCTAssertEqual(result.increment, 4)
+    }
+
+    func test_GivenPager_WhenDragQuickly_ThenIncrementPage() {
+        let pagerContent = givenPager
+        pagerContent.pagerModel.draggingOffset = -pagerContent.size.width / 4
+        pagerContent.pagerModel.draggingVelocity = -600
+        let result = pagerContent.dragResult
+        XCTAssertEqual(result.page, 1)
+        XCTAssertEqual(result.increment, 1)
     }
 
     func test_GivenPager_WhenIsFocused_ThenTrue() {
@@ -29,9 +113,9 @@ final class PagerContent_Helper_Tests: XCTestCase {
     }
     
     func test_GivenInteractivePager_WhenScaleIncrement_ThenInteractiveScaleInverse() {
-        let pager = givenPager.interactive(0.7)
+        let pager = givenPager.interactive(scale: 0.7)
         let scaleIncrement = pager.scaleIncrement
-        XCTAssertEqual(Int(scaleIncrement * 10), 3)
+        XCTAssertEqual(Int((scaleIncrement * 10).rounded()), 3)
     }
 
     func test_GivenPager_WhenNumberOfPages_ThenDataCount() {
@@ -48,7 +132,7 @@ final class PagerContent_Helper_Tests: XCTestCase {
     }
 
     func test_GivenPagerWithRotation_WhenAxisForItem_ThenRotationAxis() {
-        let pager = givenPager.rotation3D()
+        let pager = givenPager.interactive(rotation: true)
         let (x, y, z) = pager.axis
         XCTAssertEqual(x, pager.rotationAxis.x)
         XCTAssertEqual(y, pager.rotationAxis.y)
@@ -56,49 +140,49 @@ final class PagerContent_Helper_Tests: XCTestCase {
     }
 
     func test_GivenPager_WhenScaleForItem_Then1() {
-        let pager = givenPager.interactive(0.7)
+        let pager = givenPager.interactive(scale: 0.7)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 0)
         let scale = pager.scale(for: item)
         XCTAssertEqual(scale, 1)
     }
 
     func test_GivenPager_WhenScaleForItem_ThenExpectedValue() {
-        let pager = givenPager.interactive(0.7)
+        let pager = givenPager.interactive(scale: 0.7)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 1)
         let scale = pager.scale(for: item)
         XCTAssertEqual(scale, 0.7)
     }
 
     func test_GivenPagerDragging_WhenScaleForItem_ThenLessThanOne() {
-        let pager = givenPager.interactive(0.7).pageOffset(0.1)
+        let pager = givenPager.interactive(scale: 0.7).pageOffset(0.1)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 1)
         let scale = pager.scale(for: item)
         XCTAssertLessThan(scale, 1)
     }
 
     func test_GivenPagerDragging_WhenScaleForItem_ThenGreaterThanInteractive() {
-        let pager = givenPager.interactive(0.7).pageOffset(0.1)
+        let pager = givenPager.interactive(scale: 0.7).pageOffset(0.1)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 1)
         let scale = pager.scale(for: item)
         XCTAssertGreaterThan(scale, 0.7)
     }
 
     func test_GivenPagerDragging_WhenScaleForNonExistingItem_ThenInteractiveScale() {
-        let pager = givenPager.interactive(0.7).pageOffset(0.1)
+        let pager = givenPager.interactive(scale: 0.7).pageOffset(0.1)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 200)
         let scale = pager.scale(for: item)
         XCTAssertEqual(scale, 0.7)
     }
 
     func test_GivenPagerDragging_WhenScaleForFarItem_ThenInteractiveScale() {
-        let pager = givenPager.interactive(0.7).pageOffset(-0.1)
+        let pager = givenPager.interactive(scale: 0.7).pageOffset(-0.1)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 3)
         let scale = pager.scale(for: item)
         XCTAssertEqual(scale, 0.7)
     }
 
     func test_GivenPagerDragging_WhenScaleBouncing_ThenLessThanZero() {
-        let pager = givenPager.interactive(0.7).pageOffset(-0.1)
+        let pager = givenPager.interactive(scale: 0.7).pageOffset(-0.1)
         let item = PageWrapper(batchId: 1, keyPath: \.self, element: 1)
         let scale = pager.scale(for: item)
         XCTAssertLessThan(scale, 1)
@@ -249,19 +333,19 @@ final class PagerContent_Helper_Tests: XCTestCase {
     }
 
     func test_GivenPagerWithRotation3D_WhenAngle_ThenZero() {
-        let pager = givenPager.rotation3D()
+        let pager = givenPager.interactive(rotation: true)
         let angle = pager.angle(for: .init(batchId: 1, keyPath: \.self, element: 0))
         XCTAssertEqual(angle, .zero)
     }
 
     func test_GivenPagerWithRotation3DDraggingForward_WhenAngle_ThenGreaterThanZero() {
-        let pager = givenPager.rotation3D().pageOffset(1.1)
+        let pager = givenPager.interactive(rotation: true).pageOffset(1.1)
         let angle = pager.angle(for: .init(batchId: 1, keyPath: \.self, element: 0))
         XCTAssertGreaterThan(angle.degrees, .zero)
     }
 
     func test_GivenPagerWithRotation3DDraggingBackward_WhenAngle_ThenLessThanZero() {
-        let pager = givenPager.rotation3D().pageOffset(-0.1)
+        let pager = givenPager.interactive(rotation: true).pageOffset(-0.1)
         let angle = pager.angle(for: .init(batchId: 1, keyPath: \.self, element: 0))
         XCTAssertLessThan(angle.degrees, .zero)
     }
@@ -319,6 +403,14 @@ final class PagerContent_Helper_Tests: XCTestCase {
         ("test_GivenPager_WhenIsFocused_ThenFalse", test_GivenPager_WhenIsFocused_ThenFalse),
         ("test_GivenHighSensitivePager_WhenCurrentPage_ThenThree", test_GivenHighSensitivePager_WhenCurrentPage_ThenThree),
         ("test_GivenHighSensitivePager_WhenCurrentPage_ThenTwo", test_GivenHighSensitivePager_WhenCurrentPage_ThenTwo),
-        ("test_GivenCustomSensitivePager_WhenCurrentPage_ThenTwo", test_GivenCustomSensitivePager_WhenCurrentPage_ThenTwo)
+        ("test_GivenCustomSensitivePager_WhenCurrentPage_ThenTwo", test_GivenCustomSensitivePager_WhenCurrentPage_ThenTwo),
+        ("test_GivenPager_WhenPagerModelHelpers_ThenSameValues", test_GivenPager_WhenPagerModelHelpers_ThenSameValues),
+        ("test_GivenMultiplePaginationPager_WhenDragResult_ThenValues", test_GivenMultiplePaginationPager_WhenDragResult_ThenValues),
+        ("test_GivenPager_WhenDragQuickly_ThenIncrementPage", test_GivenPager_WhenDragQuickly_ThenIncrementPage),
+        ("test_GivenInfinitePager_WhenDragLeft_ThenLastPage", test_GivenInfinitePager_WhenDragLeft_ThenLastPage),
+        ("test_GivenPager_WhenOpacity_ThenOne", test_GivenPager_WhenOpacity_ThenOne),
+        ("test_GivenPager_WhenOpacityForNotFoundIndex_ThenOne", test_GivenPager_WhenOpacityForNotFoundIndex_ThenOne),
+        ("test_GivenFadedPager_WhenOpacityForNotFoundIndex_ThenValues", test_GivenFadedPager_WhenOpacityForNotFoundIndex_ThenValues),
+        ("test_GivenFadedPagerMovingForward_WhenOpacityForNotFoundIndex_ThenValues", test_GivenFadedPagerMovingForward_WhenOpacityForNotFoundIndex_ThenValues)
     ]
 }

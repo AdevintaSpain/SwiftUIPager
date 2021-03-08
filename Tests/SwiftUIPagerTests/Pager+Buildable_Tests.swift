@@ -9,7 +9,7 @@ extension Int: Identifiable {
 final class Pager_Buildable_Tests: XCTestCase {
 
     var givenPager: Pager<Int, Int, Text> {
-        Pager(page: .constant(0), data: Array(0..<20)) {
+        Pager(page: .first(), data: Array(0..<20)) {
             Text("\($0)")
         }
     }
@@ -36,11 +36,57 @@ final class Pager_Buildable_Tests: XCTestCase {
         XCTAssertEqual(pager.allowsMultiplePagination, false)
         XCTAssertNil(pager.pagingAnimation)
         XCTAssertEqual(pager.sensitivity, .default)
+        XCTAssertEqual(pager.pageRatio, 1)
+        XCTAssertTrue(pager.bounces)
+        XCTAssertNil(pager.opacityIncrement)
 
         let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
         XCTAssertNil(pagerContent.direction)
         XCTAssertEqual(pagerContent.minimumDistance, 15)
         XCTAssertFalse(pagerContent.isDragging)
+    }
+
+    func test_GivenPager_WhenFaded_ThenOpacityIncrementChanges() {
+        var pager = givenPager
+        pager = pager.interactive(opacity: 0.2)
+
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertEqual(pagerContent.opacityIncrement, 0.2)
+    }
+
+    func test_GivenPager_WhenSinglePagination_ThenRatioChanges() {
+        var pager = givenPager
+        pager = pager.singlePagination(ratio: 0.33, sensitivity: .high)
+
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertEqual(pagerContent.sensitivity, .high)
+        XCTAssertEqual(pagerContent.pageRatio, 0.33)
+    }
+
+    func test_GivenPager_WhenSinglePaginationNegativeValue_ThenRatioZero() {
+        var pager = givenPager
+        pager = pager.singlePagination(ratio: -0.33, sensitivity: .high)
+
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertEqual(pagerContent.sensitivity, .high)
+        XCTAssertEqual(pagerContent.pageRatio, 0)
+    }
+
+    func test_GivenPager_WhenSinglePaginationTooLarge_ThenRatio1() {
+        var pager = givenPager
+        pager = pager.singlePagination(ratio: 1.2, sensitivity: .high)
+
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertEqual(pagerContent.sensitivity, .high)
+        XCTAssertEqual(pagerContent.pageRatio, 1)
+    }
+
+    func test_GivenMultiplePaginationPager_WhenSinglePagination_ThenAllowsMultiplePaginationFalse() {
+        var pager = givenPager.multiplePagination()
+        pager = pager.singlePagination()
+
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertFalse(pagerContent.allowsMultiplePagination)
     }
 
     func test_GivenPager_WhenSensitivityHigh_ThenSensitivityHigh() {
@@ -218,6 +264,17 @@ final class Pager_Buildable_Tests: XCTestCase {
         XCTAssertEqual(pagerContentInteractive.interactiveScale, pagerContentWithRotation.interactiveScale)
         XCTAssertEqual(pagerContentInteractive.shouldRotate, pagerContentWithRotation.shouldRotate)
     }
+
+    func test_GivenPager_WhenCombineInteractiveModifier_ThenNoExclusive() {
+        let interactivePager = givenPager
+            .interactive(scale: 0.4)
+            .interactive(opacity: 0.3)
+            .interactive(rotation: true)
+        let pagerContent = interactivePager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertEqual(pagerContent.opacityIncrement, 0.3)
+        XCTAssertEqual(pagerContent.interactiveScale, 0.4)
+        XCTAssertTrue(pagerContent.shouldRotate)
+    }
     
     func test_GivenPager_When3DRotation_ThenShouldRotate() {
         var pager = givenPager
@@ -225,7 +282,7 @@ final class Pager_Buildable_Tests: XCTestCase {
         let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
 
         XCTAssertTrue(pagerContent.shouldRotate)
-        XCTAssertEqual(pagerContent.interactiveScale, pagerContent.rotationInteractiveScale)
+        XCTAssertEqual(pagerContent.interactiveScale, 0.7)
     }
     
     func test_GivenPagerWith3DRotation_When3DRotationFalse_ThenShouldRotateFalse() {
@@ -416,21 +473,67 @@ final class Pager_Buildable_Tests: XCTestCase {
         waitForExpectations(timeout: 1, handler: nil)
     }
 
-    
-    func test_GivenPager_WhenOnPageChanged_ThenObservePageChanges() throws {
+    func test_GivenPager_WhenOnDraggingChanged_ThenCallback() {
+        var pager = givenPager
+        pager = pager.onDraggingChanged({ _ in })
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertNotNil(pagerContent.onDraggingChanged)
+    }
+
+    func test_GivenPager_WhenOnDraggingEnded_ThenCallback() {
+        var pager = givenPager
+        let expectation = self.expectation(description: "Callback is called")
+        pager = pager.onDraggingEnded({
+            expectation.fulfill()
+        })
+
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        pagerContent.onDragGestureEnded()
+        waitForExpectations(timeout: 1, handler: nil)
+    }
+
+    func test_GivenPager_WhenBouncesFalse_ThenBouncesFalse() {
+        let pager = givenPager.bounces(false)
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertFalse(pagerContent.bounces)
+    }
+
+    func test_GivenPager_WhenOnPageChanged_ThenCallbackNotNil() {
+        let pager = givenPager.onPageChanged { _ in }
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        XCTAssertNotNil(pagerContent.onPageChanged)
+    }
+
+    func test_GivenPager_WhenOnPageWillChange_ThenObservePageChanges() throws {
         var pager = givenPager
         
         var newPage: Int? = nil
-        pager = pager.onPageChanged({ (page) in
+        pager = pager.onPageWillChange({ (page) in
+            newPage = page
+        })
+        
+        let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
+        pager.pagerModel.draggingOffset = -pagerContent.pageSize.width
+        pagerContent.onDragGestureEnded()
+
+        let newPageUnwrapped = try XCTUnwrap(newPage)
+        XCTAssertEqual(pagerContent.page, newPageUnwrapped)
+    }
+
+    func test_GivenPager_WhenOnPageWillChange_ThenObserveNoPageChanges() throws {
+        var pager = givenPager
+
+        var newPage: Int? = nil
+        pager = pager.onPageWillChange({ (page) in
             newPage = page
         })
 
-        pager.page = 3
-
-        let newPageUnwrapped = try XCTUnwrap(newPage)
         let pagerContent = pager.content(for: CGSize(width: 100, height: 100))
-        XCTAssertEqual(pager.page, newPageUnwrapped)
-        XCTAssertEqual(pagerContent.page, pager.page)
+        pager.pagerModel.draggingOffset = -pagerContent.pageSize.width / 4
+        pagerContent.onDragGestureEnded()
+
+        XCTAssertNil(newPage)
+        XCTAssertEqual(pagerContent.page, 0)
     }
 
     func test_GivenPagerWithSizeZero_WhenPageSize_ThenZero() {
@@ -521,7 +624,8 @@ final class Pager_Buildable_Tests: XCTestCase {
         ("test_GivenVerticalPager_WhenPaddingHorizontal_ThenMinLeadingAndTrailing", test_GivenVerticalPager_WhenPaddingHorizontal_ThenMinLeadingAndTrailing),
         ("test_GivenHorizontalPager_WhenPaddingVertical_ThenDefaultInsets", test_GivenHorizontalPager_WhenPaddingVertical_ThenDefaultInsets),
         ("test_GivenHorizontalPager_WhenPadding_ThenDefaultLengthVerticalInsets", test_GivenHorizontalPager_WhenPadding_ThenDefaultLengthVerticalInsets),
-        ("test_GivenPager_WhenOnPageChanged_ThenObservePageChanges", test_GivenPager_WhenOnPageChanged_ThenObservePageChanges),
+        ("test_GivenPager_WhenOnPageWillChange_ThenObservePageChanges", test_GivenPager_WhenOnPageWillChange_ThenObservePageChanges),
+        ("test_GivenPager_WhenOnPageWillChange_ThenObserveNoPageChanges", test_GivenPager_WhenOnPageWillChange_ThenObserveNoPageChanges),
         ("test_GivenPager_WhenSwipeInteractionAreaAllAvailable_ThenAllAvailable", test_GivenPager_WhenSwipeInteractionAreaAllAvailable_ThenAllAvailable),
         ("test_GivenAllnteractionAreaPager_WhenSwipeInteractionAreaPage_ThenPage", test_GivenAllnteractionAreaPager_WhenSwipeInteractionAreaPage_ThenPage),
         ("test_GivenPager_WhenItemAspectAlignmentEnd_ThenItemAlignmentEnd", test_GivenPager_WhenItemAspectAlignmentEnd_ThenItemAlignmentEnd),
@@ -540,7 +644,19 @@ final class Pager_Buildable_Tests: XCTestCase {
         ("test_GivenPager_WhenMultiplePagination_ThenAllowsMultiplePagination", test_GivenPager_WhenMultiplePagination_ThenAllowsMultiplePagination),
         ("test_GivenPager_WhenPagingAnimation_ThenPagingAnimationNotNil", test_GivenPager_WhenPagingAnimation_ThenPagingAnimationNotNil),
         ("test_GivenPager_WhenPageOffsetPositive_ThenDirectionForward", test_GivenPager_WhenPageOffsetPositive_ThenDirectionForward),
-        ("test_GivenPager_WhenPageOffsetNegative_ThenDirectionBackward", test_GivenPager_WhenPageOffsetNegative_ThenDirectionBackward)
+        ("test_GivenPager_WhenPageOffsetNegative_ThenDirectionBackward", test_GivenPager_WhenPageOffsetNegative_ThenDirectionBackward),
+        ("test_GivenPager_WhenSinglePagination_ThenRatioChanges", test_GivenPager_WhenSinglePagination_ThenRatioChanges),
+        ("test_GivenPager_WhenSinglePaginationNegativeValue_ThenRatioZero", test_GivenPager_WhenSinglePaginationNegativeValue_ThenRatioZero),
+        ("test_GivenPager_WhenSinglePaginationTooLarge_ThenRatio1", test_GivenPager_WhenSinglePaginationTooLarge_ThenRatio1),
+        ("test_GivenMultiplePaginationPager_WhenSinglePagination_ThenAllowsMultiplePaginationFalse", test_GivenMultiplePaginationPager_WhenSinglePagination_ThenAllowsMultiplePaginationFalse),
+        ("test_GivenPager_WhenBouncesFalse_ThenBouncesFalse", test_GivenPager_WhenBouncesFalse_ThenBouncesFalse),
+        ("test_GivenPager_WhenOnDraggingBegan_ThenCallback", test_GivenPager_WhenOnDraggingBegan_ThenCallback),
+        ("test_GivenPager_WhenOnDraggingChanged_ThenCallback", test_GivenPager_WhenOnDraggingChanged_ThenCallback),
+        ("test_GivenPager_WhenOnDraggingEnded_ThenCallback", test_GivenPager_WhenOnDraggingEnded_ThenCallback),
+        ("test_GivenPager_WhenOnPageChanged_ThenCallbackNotNil", test_GivenPager_WhenOnPageChanged_ThenCallbackNotNil),
+        ("test_GivenPager_WhenFaded_ThenOpacityIncrementChanges", test_GivenPager_WhenFaded_ThenOpacityIncrementChanges),
+        ("test_GivenPager_WhenCombineInteractiveModifier_ThenNoExclusive", test_GivenPager_WhenCombineInteractiveModifier_ThenNoExclusive),
+        ("test_GivenPager_WhenCombineInteractiveModifier_ThenNoExclusive", test_GivenPager_WhenCombineInteractiveModifier_ThenNoExclusive)
     ]
 }
 
