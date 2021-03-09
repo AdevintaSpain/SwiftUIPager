@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
   s.name         = "AdevintaSwiftUIPager"
-  s.version      = '1.13.0'
+  s.version      = '2.1.0'
   s.summary      = "Native pager for SwiftUI. Easily to use, easy to customize."
 
   s.description  = <<-DESC

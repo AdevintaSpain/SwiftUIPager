@@ -9,8 +9,9 @@
 import SwiftUI
 
 struct EmbeddedExampleView: View {
-    @State var page: Int = 0
-    @State var page2: Int = 0
+
+    @StateObject var page1: Page = .first()
+    @StateObject var page2: Page = .first()
     var data = Array(0..<10)
 
 
@@ -21,12 +22,14 @@ struct EmbeddedExampleView: View {
             GeometryReader { proxy in
                 ScrollView {
                     VStack {
-                        Pager(page: self.$page,
+                        Pager(page: self.page1,
                               data: self.data,
                               id: \.self) { page in
                                 self.pageView(page)
                         }
-                        .rotation3D()
+                        .interactive(rotation: true)
+                        .interactive(scale: 0.7)
+                        .interactive(opacity: 0.5)
                         .itemSpacing(10)
                         .itemAspectRatio(0.8, alignment: .end)
                         .padding(8)
@@ -46,7 +49,7 @@ struct EmbeddedExampleView: View {
                         .pickerStyle(SegmentedPickerStyle())
                         .padding(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
 
-                        Pager(page: self.$page2,
+                        Pager(page: self.page2,
                               data: self.data,
                               id: \.self) { page in
                                 self.pageView(page)
